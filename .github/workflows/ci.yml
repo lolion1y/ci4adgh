@@ -93,7 +93,7 @@ jobs:
           echo "upx_version=${upx_version}" >> $GITHUB_ENV
           gh release download "v${upx_version}" -R upx/upx -p 'upx-*-amd64_linux.tar.xz' -O - | tar Jx
 
-      - name: Download and compress core
+      - name: Download and compress adgh
         if: env.cancel == ''
         run: |
           mkdir -p publish
@@ -105,7 +105,7 @@ jobs:
               mv ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe ./publish/clash.meta-${{ matrix.os }}-${{ matrix.rname }}.exe
             fi
           else
-            gh release download "${download_version}" -R "${download_repo}" -p "*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" -O - | tar zxO ./AdGuardHome/AdGuardHome --strip-components=2 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
+            gh release download "${download_version}" -R "${download_repo}" -p "*-${{ matrix.os }}_${{ matrix.arch }}.tar.gz" -O - | tar zxO ./AdGuardHome/AdGuardHome --strip-components=2 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
             chmod +x ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
             if [ "${{ matrix.rname }}" != '' ];then
               mv ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }} ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.rname }}
