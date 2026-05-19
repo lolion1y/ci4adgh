@@ -124,7 +124,7 @@ jobs:
 
   Release:
     needs: [adgh]
-    if: needs.Core.outputs.cancel == ''
+    if: needs.adgh.outputs.cancel == ''
     env:
       download_version: ${{ needs.adgh.outputs.download_version }}
     runs-on: ubuntu-latest
