@@ -98,14 +98,14 @@ jobs:
         run: |
           mkdir -p publish
           if [ "${{ matrix.os }}" = "windows" ]; then
-            gh release download "${download_version}" -R "${download_repo}" -p "*-${{ matrix.os }}_${{ matrix.arch }}.zip" -O - | bsdtar -xO AdGuardHome/AdGuardHome.exe --strip-components=1 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
+            gh release download "${download_version}" -R "${download_repo}" -p "*_${{ matrix.os }}_${{ matrix.arch }}.zip" -O - | bsdtar -xO AdGuardHome/AdGuardHome.exe --strip-components=1 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
             chmod +x ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
             ./upx-${upx_version}-amd64_linux/upx ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
             if [ "${{ matrix.rname }}" != '' ];then
               mv ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe ./publish/clash.meta-${{ matrix.os }}-${{ matrix.rname }}.exe
             fi
           else
-            gh release download "${download_version}" -R "${download_repo}" -p "*-${{ matrix.os }}_${{ matrix.arch }}.tar.gz" -O - | tar zxO ./AdGuardHome/AdGuardHome --strip-components=2 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
+            gh release download "${download_version}" -R "${download_repo}" -p "*_${{ matrix.os }}_${{ matrix.arch }}.tar.gz" -O - | tar zxO ./AdGuardHome/AdGuardHome --strip-components=2 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
             chmod +x ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
             if [ "${{ matrix.rname }}" != '' ];then
               mv ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }} ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.rname }}
