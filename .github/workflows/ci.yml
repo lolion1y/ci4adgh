@@ -1,0 +1,172 @@
+name: Automatic adgh compression
+on:
+  schedule:
+    - cron: 0 0 * * *
+  workflow_dispatch:
+    inputs:
+      force:
+        type: boolean
+      upx:
+        type: choice
+        default: '--best'
+        options:
+          - ''
+          - '-9'
+          - '--best'
+          - '--brute'
+          - '--ultra-brute'
+
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ci.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  download_tag: 'latest'
+  download_version: ''
+  download_repo: AdguardTeam/AdGuardHome
+  UPX: ${{ inputs.upx }}
+
+jobs:
+  adgh:
+    runs-on: ubuntu-latest
+    outputs:
+      cancel: ${{ steps.check.outputs.cancel }}
+      download_version: ${{ steps.check.outputs.download_version }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    strategy:
+      matrix:
+        include:
+          # - { os: darwin, arch: amd64, rname: '' }
+          # - { os: darwin, arch: arm64, rname: '' }
+          # - { os: freebsd, arch: 386, rname: '' }
+          # - { os: freebsd, arch: amd64, rname: '' }
+          # - { os: freebsd, arch: armv5, rname: '' }
+          # - { os: freebsd, arch: armv6, rname: '' }
+          # - { os: freebsd, arch: armv7, rname: '' }
+          # - { os: freebsd, arch: arm64, rname: '' }
+          # - { os: linux, arch: 386, rname: '' }
+          - { os: linux, arch: amd64, rname: '' }
+          # - { os: linux, arch: armv5, rname: '' }
+          # - { os: linux, arch: armv6, rname: '' }
+          - { os: linux, arch: armv7, rname: '' }
+          - { os: linux, arch: arm64, rname: '' }
+          # - { os: linux, arch: mips_softfloat, rname: '' }
+          # - { os: linux, arch: mips64_softfloat, rname: '' }
+          # - { os: linux, arch: mips64le_softfloat, rname: '' }
+          # - { os: linux, arch: mipsle_softfloat, rname: '' }
+          # - { os: linux, arch: ppc64le, rname: '' }
+          # - { os: linux, arch: riscv64, rname: '' }
+          # - { os: openbsd, arch: amd64, rname: '' }
+          # - { os: openbsd, arch: arm64, rname: '' }
+          # - { os: windows, arch: 386, rname: '' }
+          - { os: windows, arch: amd64, rname: '' }
+          # - { os: windows, arch: arm64, rname: '' }
+    steps:
+
+      - name: Get version
+        id: check
+        run: |
+          if [ "${download_tag}" = "latest" ];then
+            download_version=$(gh release view -R "${download_repo}" --json tagName -q '.tagName' || true)
+          elif [ "${download_tag}" = "prerelease" ];then
+            download_version=$(gh release list -R "${download_repo}" --json tagName,isPrerelease -q 'map(select(.isPrerelease))[0].tagName' || true)
+          fi
+          echo "download_version=${download_version}" | tee -a "$GITHUB_OUTPUT" "$GITHUB_ENV"
+          [ "${download_version}" == '' ] && echo "::warning title=${{ matrix.os }}-${{ matrix.arch }}::Failed to get version" && exit 1
+          if [ "${{ inputs.force }}" != 'true' ] && [ "$(gh release download latest -R ${{ github.repository }} -p 'version.txt' -O -)" = "${download_version}" ];then
+            echo "cancel=true" | tee -a "$GITHUB_OUTPUT" "$GITHUB_ENV" > /dev/null
+            echo "::notice title=Skip ci::${download_version}"
+          fi
+
+      - name: Download upx
+        if: env.cancel == ''
+        run: |
+          upx_version=$(gh release view -R upx/upx --json tagName -q '.tagName | ltrimstr("v")')
+          echo "upx_version=${upx_version}" >> $GITHUB_ENV
+          gh release download "v${upx_version}" -R upx/upx -p 'upx-*-amd64_linux.tar.xz' -O - | tar Jx
+
+      - name: Download and compress core
+        if: env.cancel == ''
+        run: |
+          mkdir -p publish
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            gh release download "${download_version}" -R "${download_repo}" -p "*-${{ matrix.os }}_${{ matrix.arch }}.zip" -O - | bsdtar -xO AdGuardHome/AdGuardHome.exe --strip-components=1 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
+            chmod +x ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
+            ./upx-${upx_version}-amd64_linux/upx ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
+            if [ "${{ matrix.rname }}" != '' ];then
+              mv ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe ./publish/clash.meta-${{ matrix.os }}-${{ matrix.rname }}.exe
+            fi
+          else
+            gh release download "${download_version}" -R "${download_repo}" -p "*-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" -O - | tar zxO ./AdGuardHome/AdGuardHome --strip-components=2 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
+            chmod +x ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}
+            if [ "${{ matrix.rname }}" != '' ];then
+              mv ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }} ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.rname }}
+            fi
+          fi
+
+      - name: Archive production artifacts
+        if: env.cancel == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.arch }}
+          path: ./publish/*
+
+  Release:
+    needs: [adgh]
+    if: needs.Core.outputs.cancel == ''
+    env:
+      download_version: ${{ needs.Core.outputs.download_version }}
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: publish
+          merge-multiple: true
+
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: publish
+
+      - name: Generate body.txt & version.txt
+        run: |
+          echo -n "$(TZ='Asia/Shanghai' date "+%F %R %z")" > ./body.txt
+          echo -ne "\n\n" >> ./body.txt
+          echo -n "[AdGuardHome-Release](https://github.com/AdguardTeam/AdGuardHome/releases)" >> ./body.txt
+          echo -n "${download_version}" > ./publish/version.txt
+          echo "::notice::${download_version}"
+
+      - name: Delete current release assets
+        uses: andreaswilli/delete-release-assets-action@v4.0.0
+        with:
+          github_token: ${{ secrets.github_token }}
+          tag: latest
+          deleteOnlyFromDrafts: false
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: ${{ env.download_version }}
+          files: ./publish/*
+          body_path: body.txt
+
+      - name: Git push assets to "release" branch
+        run: |
+          cd publish || exit 1
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b release
+          git add version.txt
+          git commit -m "${download_version}"
+          git remote add origin "https://${{ github.actor }}:${{ secrets.github_token }}@github.com/${{ github.repository }}"
+          git push -f -u origin release
