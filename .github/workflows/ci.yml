@@ -98,6 +98,7 @@ jobs:
         run: |
           mkdir -p publish
           if [ "${{ matrix.os }}" = "windows" ]; then
+            apt install libarchive-tools -y
             gh release download "${download_version}" -R "${download_repo}" -p "*_${{ matrix.os }}_${{ matrix.arch }}.zip" -O - | bsdtar -xO AdGuardHome/AdGuardHome.exe --strip-components=1 > ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
             chmod +x ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
             ./upx-${upx_version}-amd64_linux/upx ./publish/AdGuardHome-${{ matrix.os }}-${{ matrix.arch }}.exe
