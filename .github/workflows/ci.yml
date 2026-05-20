@@ -29,7 +29,7 @@ env:
   download_tag: latest
   download_version: ''
   download_repo: AdguardTeam/AdGuardHome
-  UPX: ${{ inputs.upx }}
+  UPX: ${{ inputs.upx || '--best' }}
 
 jobs:
   adgh:
